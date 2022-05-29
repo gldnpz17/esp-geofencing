@@ -23,15 +23,6 @@ String get_body(String http_message) {
   return http_message.substring(body_start + 4);
 }
 
-TaskHandle_t maintain_connection_task;
-void maintain_connection(void *pvParameters) {
-  while(true) {
-    pubsub.loop();
-
-    vTaskDelay(3000);
-  }
-}
-
 void setup() {
   Serial.begin(115200);
 
@@ -54,16 +45,6 @@ void setup() {
   Serial.println(WiFi.localIP());
   server.begin();
   pubsub.setServer(MQTT_SERVER, 1883);
-
-  xTaskCreatePinnedToCore(
-    maintain_connection,
-    "MaintainConnection",
-    10000,
-    NULL,
-    tskIDLE_PRIORITY,
-    &maintain_connection_task,
-    1
-  );
 }
 
 void mqttConnect(WiFiClient& client) {
@@ -82,9 +63,9 @@ void loop() {
   if (!pubsub.connected()) {
     mqttConnect(client);
   }
-  /*if (!pubsub.loop()) {
+  if (!pubsub.loop()) {
     pubsub.connect(CLIENT_ID.c_str());
-  }*/
+  }
 
   if (client) {
     long current_time = millis();
@@ -145,8 +126,7 @@ R"(<!DOCTYPE html>
       Serial.printf("Latitude: %f, Longitude: %f\n", latitude, longitude);
       
       Serial.printf("MQTT connection: %s\n", pubsub.connected() ? "CONNECTED" : "DISCONNECTED");
-      char value[] = "TES";
-      bool publish_status = pubsub.publish(TOPIC, value);
+      bool publish_status = pubsub.publish(TOPIC, body.c_str());
       Serial.printf("Publish status: %s\n", publish_status ? "SUCCESS" : "FAILURE");
     }
 
