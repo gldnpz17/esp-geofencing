@@ -4,7 +4,7 @@
 const char* ssid = "gldnpz";
 const char* password = "sapigemuk55555";
 
-const char* MQTT_SERVER = "192.168.251.3";
+const char* MQTT_SERVER = "104.209.180.133";
 String CLIENT_ID = "ESP32Client";
 
 #define TOPIC "geofencing/location"
