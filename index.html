@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      html, body { height: 100%; }
+      body { display: flex; align-items: center; justify-content: center; } 
+    </style>
+  </head>
+  <body>
+    <span id="location-info">Location: N/A</span>
+    <script>
+      const LOCATION_URL = "http://192.168.225.121"
+      const locationElement = document.getElementById('location-info');
+
+      if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(
+          async ({ coords: { latitude, longitude } }) => {
+            locationElement.innerHTML = `Location: ${latitude}, ${longitude}`
+            await fetch(LOCATION_URL, {
+              method: 'POST',
+              body: `${latitude},${longitude}`
+            })
+          },
+          ({ message }) => {
+            locationElement.innerHTML = `Error: ${message}`
+          }
+        )
+      } else {
+        locationElement.innerHTML = 'Error: Geolocation is not supported by this browser'
+      }
+    </script>
+  </body>
+</html>
