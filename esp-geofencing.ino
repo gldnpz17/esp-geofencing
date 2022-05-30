@@ -1,4 +1,4 @@
-#include <PubSubClient.h>
+#include "PubSubClient.h"
 #include <WiFi.h>
 
 const char* ssid = "gldnpz";
@@ -74,12 +74,13 @@ void loop() {
     String http_message = client.readString();
 
     client.println("HTTP/1.1 200 OK");
-    client.println("Content-type:text/html");
     client.println("Connection: close");
-    client.println();
 
     if (http_message.indexOf("GET") != -1) {
       Serial.println("Sending page...");
+      client.println("Content-type:text/html");
+      client.println();
+
       client.println(
 R"(<!DOCTYPE html>
 <html>
@@ -87,30 +88,52 @@ R"(<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
       html, body { height: 100%; }
-      body { display: flex; align-items: center; justify-content: center; } 
+      body { display: flex; align-items: center; justify-content: center; flex-direction: column; } 
     </style>
   </head>
   <body>
-    <span id="location-info">Location: N/A</span>
+    <div id="id-info">ID: N/A</div>
+    <div id="name">Name: <input id="name-input" name="name" /></div>
+    <div id="location-info">Location: N/A</div>
     <script>
+      const idElement = document.getElementById("id-info");
       const locationElement = document.getElementById("location-info");
+      const nameInput = document.getElementById("name-input");
 
+      const CHARSET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      id = Array.apply(null, Array(16)).map(() => CHARSET[Math.floor(Math.random() * CHARSET.length)]).join("");
+      idElement.innerText = `ID: ${id}`;
+
+      let name = "";
+      nameInput.addEventListener("change", ({ target: { value } }) => name = value);
+
+      let lat = null
+      let long = null
       if (navigator.geolocation) {
         navigator.geolocation.watchPosition(
           async ({ coords: { latitude, longitude } }) => {
             locationElement.innerHTML = `Location: ${latitude}, ${longitude}`
-            await fetch("/", {
-              method: "POST",
-              body: `${latitude},${longitude}`
-            })
+            lat = latitude
+            long = longitude
           },
           ({ message }) => {
             locationElement.innerHTML = `Error: ${message}`
           }
         )
       } else {
-        locationElement.innerHTML = "Error: Geolocation is not supported by this browser"
+        locationElement.innerHTML = 'Error: Geolocation is not supported by this browser'
       }
+
+      async function sendUpdate() {
+        if (id && lat && long && name) {
+          await fetch("/", {
+            method: "POST",
+            body: `${id},${name},${lat},${long}`
+          })
+        }
+      }
+
+      setInterval(sendUpdate, 5000);
     </script>
   </body>
 </html>)"
@@ -118,12 +141,9 @@ R"(<!DOCTYPE html>
       client.println();
     } else if (http_message.indexOf("POST") != -1) {
       Serial.println("Location data received.");
+      client.println();
 
       String body = get_body(http_message);
-      double latitude = body.substring(0, body.indexOf(",")).toDouble();
-      double longitude = body.substring(body.indexOf(",") + 1).toDouble();
-
-      Serial.printf("Latitude: %f, Longitude: %f\n", latitude, longitude);
       
       Serial.printf("MQTT connection: %s\n", pubsub.connected() ? "CONNECTED" : "DISCONNECTED");
       bool publish_status = pubsub.publish(TOPIC, body.c_str());
