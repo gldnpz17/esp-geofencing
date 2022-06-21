@@ -1,8 +1,8 @@
 #include "PubSubClient.h"
 #include <WiFi.h>
 
-const char* ssid = "some_wifi_ssid";
-const char* password = "some_wifi_password";
+const char* ssid = "gldnpz";
+const char* password = "sapigemuk55555";
 
 const char* MQTT_SERVER = "192.168.131.3";
 String CLIENT_ID = WiFi.macAddress();
@@ -116,7 +116,7 @@ R"(<!DOCTYPE html>
     </style>
   </head>
   <body>
-    <div>ESP32 Mac Address: )" + CLIENT_ID + R"(</div>
+    <div>ESP32 MAC Address: )" + CLIENT_ID + R"(</div>
     <div id="name">Name: <input id="name-input" name="name" /></div>
     <div id="location-info">Location: N/A</div>
     <script>
