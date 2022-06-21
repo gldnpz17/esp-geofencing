@@ -1,13 +1,14 @@
 #include "PubSubClient.h"
 #include <WiFi.h>
 
-const char* ssid = "gldnpz";
-const char* password = "sapigemuk55555";
+const char* ssid = "some_wifi_ssid";
+const char* password = "some_wifi_password";
 
-const char* MQTT_SERVER = "104.209.180.133";
-String CLIENT_ID = "ESP32Client";
+const char* MQTT_SERVER = "192.168.131.3";
+String CLIENT_ID = WiFi.macAddress();
 
-#define TOPIC "geofencing/location"
+#define PUBLISH_TOPIC "geofencing/location"
+String SUBSCRIBE_TOPIC = "geofencing/" + CLIENT_ID + "/trespass";
 
 WiFiServer server(80);
 WiFiClient mqtt_wifi_client;
@@ -23,10 +24,23 @@ String get_body(String http_message) {
   return http_message.substring(body_start + 4);
 }
 
+int LED_PIN = 27;
+bool warn = false;
+void pubsubCallback(const char* topic, byte* payload, unsigned int length) {
+  String topicString = String(topic);
+  String payloadString = String((char*)payload).substring(0, length);
+
+  if (topicString == SUBSCRIBE_TOPIC) {
+    Serial.println("Trespass status : " + payloadString);
+    warn = payloadString == "true";
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
   WiFi.mode(WIFI_MODE_STA);
+  pinMode(LED_PIN, OUTPUT);
 
   while (Serial == false) { }
   delay(2000);
@@ -43,8 +57,11 @@ void setup() {
   Serial.println("WiFi connected.");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
+  Serial.println("MAC Address: ");
+  Serial.println(WiFi.macAddress());
   server.begin();
   pubsub.setServer(MQTT_SERVER, 1883);
+  pubsub.setCallback(pubsubCallback);
 }
 
 void mqttConnect(WiFiClient& client) {
@@ -54,11 +71,18 @@ void mqttConnect(WiFiClient& client) {
       delay(5000);
     } else {
       Serial.println("MQTT connected.");
+      pubsub.subscribe(SUBSCRIBE_TOPIC.c_str(), 1);
     }
   }
 }
 
 void loop() {
+  if (warn) {
+    digitalWrite(LED_PIN, HIGH);
+  } else {
+    digitalWrite(LED_PIN, LOW);
+  }
+
   WiFiClient client = server.available();
   if (!pubsub.connected()) {
     mqttConnect(client);
@@ -92,17 +116,15 @@ R"(<!DOCTYPE html>
     </style>
   </head>
   <body>
-    <div id="id-info">ID: N/A</div>
+    <div>ESP32 Mac Address: )" + CLIENT_ID + R"(</div>
     <div id="name">Name: <input id="name-input" name="name" /></div>
     <div id="location-info">Location: N/A</div>
     <script>
-      const idElement = document.getElementById("id-info");
       const locationElement = document.getElementById("location-info");
       const nameInput = document.getElementById("name-input");
 
       const CHARSET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-      id = Array.apply(null, Array(16)).map(() => CHARSET[Math.floor(Math.random() * CHARSET.length)]).join("");
-      idElement.innerText = `ID: ${id}`;
+      id = ")" + CLIENT_ID + R"(";
 
       let name = "";
       nameInput.addEventListener("change", ({ target: { value } }) => name = value);
@@ -128,7 +150,7 @@ R"(<!DOCTYPE html>
         if (id && lat && long && name) {
           await fetch("/", {
             method: "POST",
-            body: `${id},${name},${lat},${long}`
+            body: `${name},${lat},${long}`
           })
         }
       }
@@ -141,12 +163,15 @@ R"(<!DOCTYPE html>
       client.println();
     } else if (http_message.indexOf("POST") != -1) {
       Serial.println("Location data received.");
-      client.println();
 
+      client.println("Content-type:text/plain");
+      client.println();
+      client.println("Location data received.");
+      
       String body = get_body(http_message);
       
       Serial.printf("MQTT connection: %s\n", pubsub.connected() ? "CONNECTED" : "DISCONNECTED");
-      bool publish_status = pubsub.publish(TOPIC, body.c_str());
+      bool publish_status = pubsub.publish(PUBLISH_TOPIC, (body + "," + CLIENT_ID).c_str());
       Serial.printf("Publish status: %s\n", publish_status ? "SUCCESS" : "FAILURE");
     }
 
